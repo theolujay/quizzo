@@ -20,14 +20,15 @@ const (
 
 // StateUpdate is the message broadcast to all connected clients.
 type StateUpdate struct {
-	Type          string `json:"type"`
-	GameState     string `json:"gameState"`
-	QuestionIndex int    `json:"questionIndex"`
-	Total         int    `json:"total"`
-	Question      string `json:"question"`
-	Answer        string `json:"answer"`
-	TimeRemaining int    `json:"timeRemaining"`
-	TotalTime     int    `json:"totalTime"`
+	Type          string     `json:"type"`
+	GameState     string     `json:"gameState"`
+	QuestionIndex int        `json:"questionIndex"`
+	Total         int        `json:"total"`
+	Question      string     `json:"question"`
+	Answer        string     `json:"answer"`
+	Questions     []Question `json:"questions"`
+	TimeRemaining int        `json:"timeRemaining"`
+	TotalTime     int        `json:"totalTime"`
 }
 
 // Game manages the quiz state machine, timer, and client broadcasting.
@@ -96,6 +97,7 @@ func (g *Game) buildUpdate() StateUpdate {
 		GameState:     string(g.state),
 		QuestionIndex: g.questionIdx,
 		Total:         len(g.questions),
+		Questions:     g.questions,
 		TotalTime:     g.totalTime,
 		TimeRemaining: g.timeLeft,
 	}
