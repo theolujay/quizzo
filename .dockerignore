@@ -1,0 +1,28 @@
+# Git
+.git/
+.gitignore
+
+# Environment
+.env
+.envrc
+
+# Build artifacts
+quizzo
+
+# IDE and tools
+.antigravitycli
+.idea/
+.vscode/
+
+# CI and deployment
+.github/
+deploy.sh
+stack.yml
+
+# Documentation
+README.md
+document.pdf
+
+# Docker
+Dockerfile
+.dockerignore
