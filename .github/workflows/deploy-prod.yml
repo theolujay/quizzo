@@ -1,0 +1,171 @@
+name: Production CI/CD pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      repo_name: ${{ steps.meta.outputs.REPO_NAME }}
+      short_sha: ${{ steps.meta.outputs.SHORT_SHA }}
+      version: ${{ steps.meta.outputs.VERSION }}
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> "$GITHUB_OUTPUT"
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$(date +'%Y.%m.%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Display metadata
+        run: |
+          echo "Repository: ${{ steps.meta.outputs.REPO_NAME }}"
+          echo "Short SHA: ${{ steps.meta.outputs.SHORT_SHA }}"
+          echo "Version: ${{ steps.meta.outputs.VERSION }}"
+
+  build:
+    runs-on: ubuntu-24.04
+    needs: prepare
+    permissions:
+      contents: read
+      packages: write
+    environment:
+      name: production
+      url: https://quizzo.verboheit.org
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-prod-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-prod-
+            ${{ runner.os }}-buildx-
+
+      - name: Login to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          target: production
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ needs.prepare.outputs.repo_name }}:latest
+            ghcr.io/${{ github.repository_owner }}/${{ needs.prepare.outputs.repo_name }}:${{ needs.prepare.outputs.short_sha }}
+            ghcr.io/${{ github.repository_owner }}/${{ needs.prepare.outputs.repo_name }}:${{ needs.prepare.outputs.version }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ github.event.repository.updated_at }}
+
+      - name: Move cache
+        if: always()
+        run: |
+          rm -rf /tmp/.buildx-cache
+          if [ -d /tmp/.buildx-cache-new ]; then
+            mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          fi
+
+  deploy:
+    runs-on: ubuntu-24.04
+    needs: [prepare, build]
+    environment:
+      name: production
+      url: https://quizzo.verboheit.org
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create env file
+        run: |
+          echo "GIT_COMMIT_HASH=${{ needs.prepare.outputs.short_sha }}" > ./envfile
+          echo "QUIZZO_USERNAME=${{ secrets.QUIZZO_USERNAME }}" >> ./envfile
+          echo "QUIZZO_PASSWORD=${{ secrets.QUIZZO_PASSWORD }}" >> ./envfile
+
+      - name: Deploy to Swarm
+        uses: cssnr/stack-deploy-action@v1.5.0
+        with:
+          name: quizzo
+          file: infra/stack.yml
+          host: ${{ secrets.VPS_HOST }}
+          port: 22
+          user: deploy
+          ssh_key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          registry_auth: true
+          registry_host: ghcr.io
+          registry_user: verboheit
+          registry_pass: ${{ secrets.GHCR_REGISTRY_PASS }}
+          resolve_image: changed
+          prune: true
+          mode: swarm
+          env_file: ./envfile
+          summary: true
+
+  # Job 4: Verify deployment health on Swarm cluster
+  verify:
+    runs-on: ubuntu-24.04
+    needs: [prepare, deploy]
+    environment:
+      name: production
+      url: https://quizzo.verboheit.org
+    steps:
+      - name: Wait for deployment health check
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: deploy
+          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          script: |
+            echo "Waiting for quizzo service to be healthy..."
+
+            # Wait up to 5 minutes for services to stabilize
+            for i in {1..30}; do
+              # Check if service replicas are running
+              REPLICAS=$(docker service ls --filter name=quizzo_quizzo --format "{{.Replicas}}" | grep -v "0/")
+
+              if echo "$REPLICAS" | grep -qv "/"; then
+                echo "Quizzo Swarm service is up!"
+
+                # Perform actual HTTP probe
+                if curl -f -s -o /dev/null -w "%{http_code}" https://quizzo.verboheit.org/ | grep -q "200"; then
+                  echo "Service is serving HTTP 200 at https://quizzo.verboheit.org!"
+                  exit 0
+                fi
+              fi
+
+              echo "Attempt $i/30: Service not ready yet..."
+              sleep 10
+            done
+
+            echo "Deployment health check failed!"
+            exit 1
+        timeout-minutes: 6

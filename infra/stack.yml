@@ -1,0 +1,40 @@
+version: "3.8"
+
+services:
+  quizzo:
+    image: ghcr.io/verboheit/quizzo:${GIT_COMMIT_HASH:-latest}
+    environment:
+      - QUIZZO_USERNAME=${QUIZZO_USERNAME}
+      - QUIZZO_PASSWORD=${QUIZZO_PASSWORD}
+      - PORT=8080
+    networks:
+      - prod
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.quizzo.rule=Host(`quizzo.verboheit.org`)"
+      - "traefik.http.routers.quizzo.entrypoints=websecure"
+      - "traefik.http.routers.quizzo.tls.certresolver=le"
+      - "traefik.http.routers.quizzo.tls=true"
+      - "traefik.http.services.quizzo.loadbalancer.server.port=8080"
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.2'
+
+networks:
+  prod:
+    external: true
