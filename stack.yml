@@ -7,6 +7,8 @@ services:
       - QUIZZO_USERNAME=${QUIZZO_USERNAME}
       - QUIZZO_PASSWORD=${QUIZZO_PASSWORD}
       - PORT=8080
+    env_file:
+      - ".env"
     networks:
       - prod
     labels:

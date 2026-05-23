@@ -115,7 +115,7 @@ jobs:
         uses: cssnr/stack-deploy-action@v1.5.0
         with:
           name: quizzo
-          file: infra/stack.yml
+          file: stack.yml
           host: ${{ secrets.VPS_HOST }}
           port: 22
           user: deploy
