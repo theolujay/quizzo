@@ -44,6 +44,15 @@ type Game struct {
 	clients     map[chan []byte]struct{}
 }
 
+// AllQuestions returns a copy of all quiz questions.
+func (g *Game) AllQuestions() []Question {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	out := make([]Question, len(g.questions))
+	copy(out, g.questions)
+	return out
+}
+
 // NewGame creates a new game with the given questions and time per question.
 func NewGame(questions []Question, totalTime int) *Game {
 	return &Game{
@@ -162,6 +171,11 @@ func (g *Game) HandleAction(action string) {
 			g.state = StateLobby
 			g.broadcast()
 		}
+	case "reset":
+		g.stopTimer()
+		g.questionIdx = 0
+		g.state = StateLobby
+		g.broadcast()
 	}
 }
 

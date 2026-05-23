@@ -567,15 +567,30 @@
             <button class="btn btn-danger hidden" id="btn-restart" onclick="sendAction('restart')">
                 ↺ Return to Lobby
             </button>
+            <button class="btn btn-danger hidden" id="btn-reset" onclick="sendAction('reset')">
+                ✕ Reset Game
+            </button>
         </div>
 
         <!-- Question overview -->
         <div class="question-list-toggle" id="q-list-toggle" onclick="toggleQuestionList()">
-            <span class="question-list-toggle-text">📋 Question Index & League Log</span>
-            <span class="question-list-toggle-chevron" id="q-list-chevron">▼</span>
+            <span class="question-list-toggle-text">📋 All Questions & Answers</span>
+            <span class="question-list-toggle-chevron open" id="q-list-chevron">▼</span>
         </div>
-        <div class="question-list" id="q-list">
-            <div class="question-list-inner" id="q-list-inner"></div>
+        <div class="question-list open" id="q-list">
+            <div class="question-list-inner" id="q-list-inner">
+                {{range $i, $q := .Questions}}
+                <div class="q-list-item" id="q-item-{{$i}}">
+                    <div style="flex:1;min-width:0">
+                        <div style="display:flex;align-items:baseline;gap:0.5rem;margin-bottom:0.25rem">
+                            <span class="q-list-num">{{add $i 1}}.</span>
+                            <span class="q-list-text" style="font-weight:600;font-size:0.85rem;line-height:1.4">{{$q.Text}}</span>
+                        </div>
+                        <div style="font-size:0.75rem;color:var(--success);font-weight:600;padding-left:2.25rem">{{$q.Answer}}</div>
+                    </div>
+                </div>
+                {{end}}
+            </div>
         </div>
     </main>
 
@@ -600,6 +615,7 @@
             btnNext:       document.getElementById('btn-next'),
             btnFinish:     document.getElementById('btn-finish'),
             btnRestart:    document.getElementById('btn-restart'),
+            btnReset:      document.getElementById('btn-reset'),
             qListInner:    document.getElementById('q-list-inner'),
             qList:         document.getElementById('q-list'),
             qListChevron:  document.getElementById('q-list-chevron'),
@@ -671,7 +687,7 @@
             els.stateValue.classList.toggle('time-up', gameState === 'time_up');
 
             // Hide buttons
-            [els.btnStart, els.btnReveal, els.btnNext, els.btnFinish, els.btnRestart]
+            [els.btnStart, els.btnReveal, els.btnNext, els.btnFinish, els.btnRestart, els.btnReset]
                 .forEach(b => b.classList.add('hidden'));
 
             // Hide content elements
@@ -704,6 +720,7 @@
                     }
 
                     els.btnReveal.classList.remove('hidden');
+                    els.btnReset.classList.remove('hidden');
                     break;
 
                 case 'answer_shown':
@@ -719,6 +736,7 @@
                     } else {
                         els.btnFinish.classList.remove('hidden');
                     }
+                    els.btnReset.classList.remove('hidden');
                     break;
 
                 case 'game_over':
@@ -731,22 +749,6 @@
         }
 
         function renderQuestionList(data) {
-            if (!els.qListInner.children.length && data.total > 0 && data.questions) {
-                let html = '';
-                for (let i = 0; i < data.total; i++) {
-                    const q = data.questions[i];
-                    html += '<div class="q-list-item" id="q-item-' + i + '">'
-                        + '<div style="flex:1;min-width:0">'
-                        + '<div style="display:flex;align-items:baseline;gap:0.5rem;margin-bottom:0.25rem">'
-                        + '<span class="q-list-num">' + (i+1) + '.</span>'
-                        + '<span class="q-list-text" style="font-weight:600;font-size:0.85rem;line-height:1.4">' + esc(q.text) + '</span>'
-                        + '</div>'
-                        + '<div style="font-size:0.75rem;color:var(--success);font-weight:600;padding-left:2.25rem">' + esc(q.answer) + '</div>'
-                        + '</div>'
-                        + '</div>';
-                }
-                els.qListInner.innerHTML = html;
-            }
 
             for (let i = 0; i < data.total; i++) {
                 const item = document.getElementById('q-item-' + i);

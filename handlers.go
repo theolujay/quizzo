@@ -46,7 +46,9 @@ func (h *Handler) PublicView(w http.ResponseWriter, r *http.Request) {
 // HostView renders the host control view.
 func (h *Handler) HostView(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.tmpl.ExecuteTemplate(w, "host.html", nil); err != nil {
+	if err := h.tmpl.ExecuteTemplate(w, "host.html", map[string]any{
+		"Questions": h.game.AllQuestions(),
+	}); err != nil {
 		log.Printf("Template error (host): %v", err)
 		http.Error(w, "Internal server error", 500)
 	}
