@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   quizzo:
-    image: ghcr.io/verboheit/quizzo:${GIT_COMMIT_HASH:-latest}
+    build: .
     environment:
       - QUIZZO_USERNAME=${QUIZZO_USERNAME}
       - QUIZZO_PASSWORD=${QUIZZO_PASSWORD}
